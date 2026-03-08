@@ -7,6 +7,109 @@ import type {
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
+// ─── Auto-zoom for high-DPI displays ──────────────────────────────────────────
+
+const REFERENCE_SHORT_EDGE = 1080;
+const AUTO_ZOOM_STEP = 0.25;
+const MANUAL_ZOOM_STEP = 0.1;
+const MIN_ZOOM_FACTOR = 0.5;
+const MAX_ZOOM_FACTOR = 3.0;
+const ZOOM_STORAGE_KEY = "t3code:zoom";
+
+/**
+ * Compute auto zoom factor from the logical short edge of the display.
+ * Logical short edge = physicalShortEdge / scaleFactor.
+ * Returns 1.0 for displays at or below 1080p logical height.
+ * Snaps to 0.25 increments, capped at 3.0×.
+ */
+function computeAutoZoomFactor(logicalShortEdge: number): number {
+  if (logicalShortEdge <= REFERENCE_SHORT_EDGE) return 1.0;
+  const ratio = logicalShortEdge / REFERENCE_SHORT_EDGE;
+  return Math.min(Math.round(ratio / AUTO_ZOOM_STEP) * AUTO_ZOOM_STEP, MAX_ZOOM_FACTOR);
+}
+
+function clampZoom(value: number): number {
+  return Math.min(Math.max(Math.round(value * 100) / 100, MIN_ZOOM_FACTOR), MAX_ZOOM_FACTOR);
+}
+
+function loadPersistedZoom(): number | null {
+  try {
+    const raw = localStorage.getItem(ZOOM_STORAGE_KEY);
+    if (raw === null) return null;
+    const parsed = parseFloat(raw);
+    return isNaN(parsed) ? null : clampZoom(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function persistZoom(zoom: number): void {
+  try {
+    localStorage.setItem(ZOOM_STORAGE_KEY, String(zoom));
+  } catch {}
+}
+
+function applyCssZoom(zoom: number): void {
+  document.documentElement.style.zoom = String(zoom);
+}
+
+export async function initAutoZoom(): Promise<void> {
+  const { currentMonitor } = await import("@tauri-apps/api/window");
+  const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
+
+  let autoZoomBaseline = 1.0;
+  let hasManualZoom = false;
+
+  async function computeAndStoreBaseline(): Promise<void> {
+    try {
+      const monitor = await currentMonitor();
+      if (!monitor) return;
+      const logicalShortEdge =
+        Math.min(monitor.size.width, monitor.size.height) / monitor.scaleFactor;
+      autoZoomBaseline = computeAutoZoomFactor(logicalShortEdge);
+    } catch {}
+  }
+
+  await computeAndStoreBaseline();
+
+  const persisted = loadPersistedZoom();
+  if (persisted !== null) {
+    hasManualZoom = true;
+    applyCssZoom(persisted);
+  } else {
+    applyCssZoom(autoZoomBaseline);
+  }
+
+  try {
+    const win = getCurrentWebviewWindow();
+    win.onScaleChanged(() => {
+      if (hasManualZoom) return;
+      computeAndStoreBaseline()
+        .then(() => applyCssZoom(autoZoomBaseline))
+        .catch(() => {});
+    }).catch(() => {});
+  } catch {}
+
+  listen<string>("menu-action", (event) => {
+    const action = event.payload;
+    if (action !== "zoom-in" && action !== "zoom-out" && action !== "reset-zoom") return;
+
+    if (action === "reset-zoom") {
+      hasManualZoom = false;
+      localStorage.removeItem(ZOOM_STORAGE_KEY);
+      applyCssZoom(autoZoomBaseline);
+      return;
+    }
+
+    const currentZoom = loadPersistedZoom() ?? autoZoomBaseline;
+    const delta = action === "zoom-in" ? MANUAL_ZOOM_STEP : -MANUAL_ZOOM_STEP;
+    const next = clampZoom(currentZoom + delta);
+    hasManualZoom = true;
+    persistZoom(next);
+    applyCssZoom(next);
+  }).catch(() => {});
+}
+
 // ─── WS URL cache ─────────────────────────────────────────────────────────────
 
 /**
@@ -48,7 +151,6 @@ export function initTauriBridge(): void {
 
   wsUrlPromise = fetchWsUrl();
 
-  // Also keep the cache updated when the backend (re)starts.
   listen<string>("backend-ws-url", (event) => {
     cachedWsUrl = event.payload;
   }).catch(() => {});
@@ -63,15 +165,12 @@ export function initTauriBridge(): void {
  */
 export function createTauriBridge(): DesktopBridge {
   return {
-    // ── WS URL ──────────────────────────────────────────────────────────────
     getWsUrl: () => cachedWsUrl,
 
-    // ── Dialogs ─────────────────────────────────────────────────────────────
     pickFolder: () => invoke<string | null>("pick_folder"),
 
     confirm: (message: string) => invoke<boolean>("confirm_dialog", { message }),
 
-    // ── Context menu ────────────────────────────────────────────────────────
     showContextMenu: <T extends string>(
       items: readonly ContextMenuItem<T>[],
       position?: { x: number; y: number },
@@ -85,10 +184,8 @@ export function createTauriBridge(): DesktopBridge {
         position: position ?? null,
       }),
 
-    // ── External links ──────────────────────────────────────────────────────
     openExternal: (url: string) => invoke<boolean>("open_external", { url }),
 
-    // ── App menu ────────────────────────────────────────────────────────────
     onMenuAction: (listener: (action: string) => void) => {
       let unlisten: (() => void) | null = null;
 
@@ -104,10 +201,6 @@ export function createTauriBridge(): DesktopBridge {
         unlisten?.();
       };
     },
-
-    // ── Auto-update stubs ────────────────────────────────────────────────────
-    // Auto-update is not implemented for personal use.
-    // These return safe no-op defaults so the rest of the UI doesn't break.
 
     getUpdateState: async (): Promise<DesktopUpdateState> => ({
       enabled: false,
@@ -156,9 +249,6 @@ export function createTauriBridge(): DesktopBridge {
       },
     }),
 
-    onUpdateState: (_listener) => {
-      // No-op — no auto-updates for personal use
-      return () => {};
-    },
+    onUpdateState: (_listener) => () => {},
   };
 }

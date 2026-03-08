@@ -13,10 +13,10 @@ import { APP_DISPLAY_NAME } from "./branding";
 // Initialize the Tauri bridge eagerly — before React renders — so that
 // window.desktopBridge is populated by the time WsTransport resolves the URL.
 if (isTauri) {
-  const { createTauriBridge, initTauriBridge } = await import("./tauriBridge");
+  const { createTauriBridge, initTauriBridge, initAutoZoom } = await import("./tauriBridge");
   initTauriBridge();
   window.desktopBridge = createTauriBridge();
-
+  initAutoZoom().catch(() => {});
 }
 
 // Tauri and Electron both use hash routing so back-navigation works inside

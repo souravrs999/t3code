@@ -4,7 +4,6 @@ use tauri::{
 };
 
 pub fn setup_menu(app: &App) -> Result<(), Box<dyn std::error::Error>> {
-    // Build the Settings item with a keyboard accelerator (Cmd+,)
     let settings_item = MenuItemBuilder::with_id("open-settings", "Settings…")
         .accelerator("CmdOrCtrl+,")
         .build(app)?;
@@ -38,7 +37,27 @@ pub fn setup_menu(app: &App) -> Result<(), Box<dyn std::error::Error>> {
         .select_all()
         .build()?;
 
-    let view_menu = SubmenuBuilder::new(app, "View").fullscreen().build()?;
+    let zoom_in_item = MenuItemBuilder::with_id("zoom-in", "Zoom In")
+        .accelerator("CmdOrCtrl+=")
+        .build(app)?;
+    let zoom_in_plus_item = MenuItemBuilder::with_id("zoom-in-plus", "Zoom In")
+        .accelerator("CmdOrCtrl+Plus")
+        .build(app)?;
+    let zoom_out_item = MenuItemBuilder::with_id("zoom-out", "Zoom Out")
+        .accelerator("CmdOrCtrl+-")
+        .build(app)?;
+    let reset_zoom_item = MenuItemBuilder::with_id("reset-zoom", "Reset Zoom")
+        .accelerator("CmdOrCtrl+0")
+        .build(app)?;
+
+    let view_menu = SubmenuBuilder::new(app, "View")
+        .item(&reset_zoom_item)
+        .item(&zoom_in_item)
+        .item(&zoom_in_plus_item)
+        .item(&zoom_out_item)
+        .separator()
+        .fullscreen()
+        .build()?;
 
     let window_menu = SubmenuBuilder::new(app, "Window")
         .minimize()
@@ -53,12 +72,19 @@ pub fn setup_menu(app: &App) -> Result<(), Box<dyn std::error::Error>> {
 
     app.set_menu(menu)?;
 
-    // Handle custom menu events by forwarding them as Tauri events so the
-    // frontend can react (e.g. navigate to the Settings page).
     let handle = app.handle().clone();
     app.on_menu_event(move |_app_handle, event| match event.id().0.as_str() {
         "open-settings" => {
             let _ = handle.emit("menu-action", "open-settings");
+        }
+        "zoom-in" | "zoom-in-plus" => {
+            let _ = handle.emit("menu-action", "zoom-in");
+        }
+        "zoom-out" => {
+            let _ = handle.emit("menu-action", "zoom-out");
+        }
+        "reset-zoom" => {
+            let _ = handle.emit("menu-action", "reset-zoom");
         }
         _ => {}
     });
