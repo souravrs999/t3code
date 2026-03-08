@@ -163,9 +163,20 @@ input {
   font-family: "SF Mono", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
 }
 
-/* Window drag region (frameless titlebar) */
+/* Window drag region (frameless titlebar) — Electron + Tauri */
 .drag-region {
   -webkit-app-region: drag;
+  app-region: drag;
+}
+
+/*
+ * Tauri's `data-tauri-drag-region` only fires on the exact element clicked.
+ * Make non-interactive children transparent to pointer events so clicks land
+ * on the parent `.drag-region` element (which carries the attribute).
+ * Interactive elements opt back in with `pointer-events: auto`.
+ */
+.drag-region > * {
+  pointer-events: none;
 }
 
 .drag-region button,
@@ -174,6 +185,8 @@ input {
 .drag-region select,
 .drag-region a {
   -webkit-app-region: no-drag;
+  app-region: no-drag;
+  pointer-events: auto;
 }
 
 /* Scrollbar styling */

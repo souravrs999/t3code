@@ -13,6 +13,8 @@ build/
 .logs/
 release/
 .t3
+apps/tauri/target
+apps/tauri/gen
 apps/web/.playwright
 apps/web/playwright-report
 apps/web/src/components/__screenshots__

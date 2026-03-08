@@ -11,7 +11,7 @@ import { cn } from "~/lib/utils";
 import { readNativeApi } from "../nativeApi";
 import { preferredTerminalEditor, resolvePathLinkTarget } from "../terminal-links";
 import { parseDiffRouteSearch, stripDiffSearchParams } from "../diffRouteSearch";
-import { isElectron } from "../env";
+import { isDesktop } from "../env";
 import { useTheme } from "../hooks/useTheme";
 import { buildPatchCacheKey } from "../lib/diffRendering";
 import { resolveDiffThemeName } from "../lib/diffRendering";
@@ -394,7 +394,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
     selectedChip?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   }, [selectedTurn?.turnId, selectedTurnId]);
 
-  const shouldUseDragRegion = isElectron && mode !== "sheet";
+  const shouldUseDragRegion = isDesktop && mode !== "sheet";
   const headerRow = (
     <>
       <div className="relative min-w-0 flex-1 [-webkit-app-region:no-drag]">
@@ -523,7 +523,7 @@ export default function DiffPanel({ mode = "inline" }: DiffPanelProps) {
       )}
     >
       {shouldUseDragRegion ? (
-        <div className={headerRowClassName}>{headerRow}</div>
+        <div data-tauri-drag-region className={headerRowClassName}>{headerRow}</div>
       ) : (
         <div className="border-b border-border">
           <div className={headerRowClassName}>{headerRow}</div>

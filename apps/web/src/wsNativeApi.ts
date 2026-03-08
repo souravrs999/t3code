@@ -13,6 +13,7 @@ import {
 import { Cause, Schema } from "effect";
 
 import { showContextMenuFallback } from "./contextMenuFallback";
+import { isTauri } from "./env";
 import { WsTransport } from "./wsTransport";
 
 let instance: { api: NativeApi; transport: WsTransport } | null = null;
@@ -83,6 +84,17 @@ export function onServerConfigUpdated(
 
 export function createWsNativeApi(): NativeApi {
   if (instance) return instance.api;
+
+  // In Tauri, lazily set up window.desktopBridge so WsTransport and dialogs
+  // use the Tauri invoke() layer rather than falling back to no-ops.
+  // This is a safety net — main.tsx initialises the bridge eagerly before
+  // React mounts, so window.desktopBridge will usually already be set here.
+  if (isTauri && !window.desktopBridge) {
+    import("./tauriBridge").then(({ createTauriBridge, initTauriBridge }) => {
+      initTauriBridge();
+      window.desktopBridge = createTauriBridge();
+    });
+  }
 
   const transport = new WsTransport();
 
