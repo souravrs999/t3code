@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "T3 Code",
+  "productName": "T3 Code (Alpha)",
   "version": "0.0.4-alpha.1",
   "identifier": "com.t3tools.t3code",
   "build": {
@@ -39,11 +39,18 @@
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
+      "icons/icon.ico",
       "icons/icon.png"
     ],
     "macOS": {
       "minimumSystemVersion": "10.15",
       "hardenedRuntime": true
+    },
+    "linux": {
+      "appimage": { "bundleMediaFramework": false }
+    },
+    "windows": {
+      "nsis": {}
     }
   },
   "plugins": {}

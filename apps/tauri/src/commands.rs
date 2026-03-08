@@ -35,15 +35,23 @@ pub struct BackendInfo {
 
 /// Open a native folder picker dialog. Returns the selected path or null.
 /// Maps to: DesktopBridge.pickFolder()
+///
+/// `blocking_pick_folder()` blocks the calling thread. Tauri async commands
+/// run on the main thread by default, so we spawn a blocking task to avoid
+/// deadlocking the event loop.
 #[tauri::command]
 pub async fn pick_folder(app: AppHandle) -> Option<String> {
-    let folder = app
-        .dialog()
-        .file()
-        .set_can_create_directories(true)
-        .blocking_pick_folder();
+    let result = tokio::task::spawn_blocking(move || {
+        app.dialog()
+            .file()
+            .set_can_create_directories(true)
+            .blocking_pick_folder()
+    })
+    .await
+    .ok()
+    .flatten();
 
-    folder.map(|f| f.to_string())
+    result.map(|f| f.to_string())
 }
 
 /// Show a native confirmation dialog. Returns true if confirmed.
@@ -52,14 +60,18 @@ pub async fn pick_folder(app: AppHandle) -> Option<String> {
 pub async fn confirm_dialog(app: AppHandle, message: String) -> bool {
     use tauri_plugin_dialog::MessageDialogButtons;
 
-    app.dialog()
-        .message(message)
-        .title("T3 Code")
-        .buttons(MessageDialogButtons::OkCancelCustom(
-            "Yes".to_string(),
-            "No".to_string(),
-        ))
-        .blocking_show()
+    tokio::task::spawn_blocking(move || {
+        app.dialog()
+            .message(message)
+            .title("T3 Code")
+            .buttons(MessageDialogButtons::OkCancelCustom(
+                "Yes".to_string(),
+                "No".to_string(),
+            ))
+            .blocking_show()
+    })
+    .await
+    .unwrap_or(false)
 }
 
 /// Show a native context menu at the given position.
